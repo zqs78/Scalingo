@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js" // Scalingo 会用这个命令启动服务
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2" // 用 Express 快速搭建 HTTP 服务
+    "express": "^4.18.2"
   }
 }
