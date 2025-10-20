@@ -2,7 +2,6 @@
   "name": "hy2-node",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "apt-get update && apt-get install -y openssl"
+    "start": "node server.js"
   }
 }
