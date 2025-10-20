@@ -2,6 +2,8 @@
   "name": "hy2-node",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    // 部署时自动安装 openssl
+    "postinstall": "apt-get update && apt-get install -y openssl"
   }
 }
