@@ -1,0 +1,6 @@
+{
+  "buildpacks": [
+    { "url": "https://github.com/Scalingo/apt-buildpack.git" },
+    { "url": "https://github.com/Scalingo/nodejs-buildpack.git" }
+  ]
+}
