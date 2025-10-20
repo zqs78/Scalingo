@@ -1,7 +1,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 
-// 配置信息（可根据需要修改）
+// 配置信息（保持与之前一致，无需改动）
 const config = {
   version: "v2.6.4",
   port: 25031,
@@ -13,29 +13,32 @@ const config = {
 };
 
 try {
-  // 1. 检测服务器架构
-  let arch = execSync('uname -m | tr \'[:upper:]\' \'[:lower:]\'').toString().trim();
-  if (arch.includes('arm64') || arch.includes('aarch64')) arch = 'arm64';
-  else if (arch.includes('x86_64') || arch.includes('amd64')) arch = 'amd64';
-  else throw new Error(`不支持的架构: ${arch}`);
+  // 1. 强制指定架构为 amd64（适配 Scalingo 容器）
+  const arch = "amd64";
   const binName = `hysteria-linux-${arch}`;
 
-  // 2. 清理旧文件并下载Hy2二进制
+  // 2. 清理旧文件并下载 Hy2 二进制
   execSync(`rm -f ${binName}`);
   const url = `https://github.com/apernet/hysteria/releases/download/${config.version}/${binName}`;
-  execSync(`curl -L --retry 5 -o ${binName} ${url}`);
+  console.log(`下载 Hy2 服务端: ${url}`);
+  execSync(`curl -L --retry 5 --connect-timeout 30 -o ${binName} ${url}`);
   
-  // 验证文件大小（至少5MB）
+  // 验证文件大小（至少 5MB）
   const fileSize = fs.statSync(binName).size;
-  if (fileSize < 5 * 1024 * 1024) throw new Error("下载文件异常");
+  if (fileSize < 5 * 1024 * 1024) throw new Error("Hy2 二进制文件下载不完整");
   execSync(`chmod +x ${binName}`);
+  console.log("Hy2 服务端准备完成");
 
-  // 3. 生成自签证书（若不存在）
+  // 3. 生成自签证书（依赖 openssl，已通过 apt 安装）
   if (!fs.existsSync(config.certFile) || !fs.existsSync(config.keyFile)) {
+    console.log("生成 TLS 证书...");
     execSync(`openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -keyout ${config.keyFile} -out ${config.certFile} -subj "/CN=${config.sni}"`);
+    console.log("证书生成成功");
+  } else {
+    console.log("证书已存在，跳过生成");
   }
 
-  // 4. 生成配置文件server.yaml
+  // 4. 生成配置文件 server.yaml
   const yamlContent = `listen: ":${config.port}"
 tls:
   cert: "${process.cwd()}/${config.certFile}"
@@ -56,20 +59,21 @@ quic:
   initial_conn_receive_window: 131072
   max_conn_receive_window: 262144`;
   fs.writeFileSync('server.yaml', yamlContent);
+  console.log("配置文件生成成功");
 
-  // 5. 获取服务器IP并输出节点信息
-  const serverIp = execSync('curl -s --max-time 10 https://api.ipify.org || echo "未知IP"').toString().trim();
-  const appDomain = process.env.SCALINGO_APP_URL || serverIp; // Scalingo分配的域名
+  // 5. 获取服务器域名（Scalingo 分配的地址）
+  const appDomain = process.env.SCALINGO_APP_URL ? process.env.SCALINGO_APP_URL.replace('https://', '') : execSync('curl -s --max-time 10 https://api.ipify.org').toString().trim();
   console.log("\n🎉 部署成功！节点信息：");
-  console.log(`IP/域名：${appDomain}`);
+  console.log(`域名/IP：${appDomain}`);
   console.log(`端口：${config.port}`);
   console.log(`密码：${config.password}`);
   console.log(`节点链接：hysteria2://${config.password}@${appDomain}:${config.port}?sni=${config.sni}&alpn=${config.alpn}&insecure=true#Hy2-Scalingo`);
 
-  // 6. 启动Hy2服务（前台运行，保持进程）
+  // 6. 启动 Hy2 服务（前台运行）
+  console.log("\n启动 Hy2 服务...");
   execSync(`./${binName} server -c server.yaml`, { stdio: 'inherit' });
 
 } catch (err) {
-  console.error(`❌ 错误：${err.message}`);
+  console.error(`\n❌ 错误：${err.message}`);
   process.exit(1);
 }
